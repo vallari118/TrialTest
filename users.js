@@ -1,70 +1,44 @@
-var express = require('express');
-var router = express.Router();
-
-const passport = require('passport');
 const mongoose = require('mongoose');
-const User = mongoose.model('User'); // The model containing userSchema
+//Used to create random salts and passwords 
+const crypto = require('crypto');
 
 
 
 
 
-router.post('/register', function({body}, res){
-  if(!Object.values(body).every((val)=>val)){
-    return res.send({message : "All fields are required"});
-  }
-
-  if(body.password != body.password_confirm){
-    return res.send({message : "Passwords don't match"});
-  }
-
-  const user = new User();
-
-  user.firstname = body.first_name.trim();
-  user.lastname = body.last_name.trim();
-  user.email = body.email;
-  user.setPassword(body.password);
-
-  user.save((err, newUser) => {
-    if(err){
-      res.status(400).json(err);
-
-    }else {
-      res.status(201).json({message : "Created User", user : newUser});
-
-    }
-
-  });
-  
-});
-
-router.post("/login", function(req, res){
-  //To check if user entered all fields
-  if(!req.body.email || !req.body.password){
-    return res.status(400).json({message : "All fields are required"});
-  }
-
-  //This method will call the strategy method from passport.js
-  passport.authenticate("local", (err, user, info) => {
-    if(err){ return res.status(404).json(err)}
-    if(user){
-      res.status(200).json({message : "Log in Successful"})
-    } else{
-      res.status(401).json(info)
-    }
 
 
-  })(req, res)
+const userSchema = new mongoose.Schema({
+    firstname: {
+        type: String,
+        required: true
+    },
+    lastname: {
+        type: String,
+        required: true
+    },
+    email: {
+        type: String,
+        unique: true,
+        required: true
+    },
+    password: String,
+    x
 
+    salt: String
 
 });
 
+userSchema.methods.setPassword = function(password) {
+    this.salt = crypto.randomBytes(64).toString('hex');
+    this.password = crypto.pbkdf2Sync(password, this.salt, 1000, 64, "sha512").toString('hex');
+}
+
+userSchema.methods.validatePassword = function(password) {
+    console.log(this.salt);
+    const hash = crypto.pbkdf2Sync(password, this.salt, 1000, 64, "sha512").toString('hex');
+    return hash === this.password;
+}
 
 
-
-
-
-
-
-
-module.exports = router;
+mongoose.model("User", userSchema);
